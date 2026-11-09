@@ -1,0 +1,6 @@
+Statements   : 100% ( 492/492 )
+Branches     : 100% ( 54/54 )
+Functions    : 100% ( 98/98 )
+Lines        : 100% ( 488/488 )
+Test Suites: 8 passed, 8 total
+Tests:       56 passed, 56 total

@@ -1,0 +1,58 @@
+# Jenkins Configuration as Code : configuration reproductible, aucun secret en clair.
+# Les secrets sont lus dans les variables d'environnement du conteneur (fichier .env non versionné).
+jenkins:
+  systemMessage: "Jenkins SouverainRecrut - CI backend (TP CI/CD M2)"
+  numExecutors: 2
+  securityRealm:
+    local:
+      allowsSignup: false
+      users:
+        - id: "admin"
+          password: "${JENKINS_ADMIN_PASSWORD}"
+  authorizationStrategy:
+    loggedInUsersCanDoAnything:
+      allowAnonymousRead: false
+
+credentials:
+  system:
+    domainCredentials:
+      - credentials:
+          - usernamePassword:
+              scope: GLOBAL
+              id: "dockerhub"
+              username: "${DOCKERHUB_USER}"
+              password: "${DOCKERHUB_TOKEN}"
+              description: "Docker Hub (access token)"
+          - string:
+              scope: GLOBAL
+              id: "sonar-token"
+              secret: "${SONAR_TOKEN}"
+              description: "Token d'analyse SonarQube"
+
+unclassified:
+  location:
+    url: "http://localhost:8080/"
+  sonarGlobalConfiguration:
+    buildWrapperEnabled: true
+    installations:
+      - name: "sonar"
+        serverUrl: "http://sonarqube:9000"
+        credentialsId: "sonar-token"
+
+jobs:
+  - script: |
+      pipelineJob('souverainrecrut-backend') {
+        description('CI backend SouverainRecrut : tests, SonarQube, build Docker, Trivy, push Docker Hub')
+        definition {
+          cpsScm {
+            scm {
+              git {
+                remote { url('${GIT_REPO_URL}') }
+                branches('*/Dev')
+              }
+            }
+            scriptPath('integration-continue/Jenkinsfile')
+            lightweight(true)
+          }
+        }
+      }

@@ -45,3 +45,9 @@ Thumbs.db
 # ==========================
 
 prisma/dev.db
+# ==========================
+# CI/CD (artefacts générés)
+# ==========================
+backend/coverage/
+backend/reports/
+integration-continue/jenkins/.env

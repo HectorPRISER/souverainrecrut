@@ -1,0 +1,131 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuites name="jest tests" tests="56" failures="0" errors="0" time="4.278">
+  <testsuite name="Users (ADMIN uniquement)" errors="0" failures="0" skipped="0" timestamp="2026-11-09T10:23:54" time="1.017" tests="8">
+    <testcase classname="Users (ADMIN uniquement) refuse l&apos;accès à un RECRUITER (403) et sans token (401)" name="Users (ADMIN uniquement) refuse l&apos;accès à un RECRUITER (403) et sans token (401)" time="0.069">
+    </testcase>
+    <testcase classname="Users (ADMIN uniquement) liste les utilisateurs avec pagination" name="Users (ADMIN uniquement) liste les utilisateurs avec pagination" time="0.026">
+    </testcase>
+    <testcase classname="Users (ADMIN uniquement) crée un utilisateur avec mot de passe haché (201)" name="Users (ADMIN uniquement) crée un utilisateur avec mot de passe haché (201)" time="0.075">
+    </testcase>
+    <testcase classname="Users (ADMIN uniquement) refuse un email déjà utilisé (409)" name="Users (ADMIN uniquement) refuse un email déjà utilisé (409)" time="0.016">
+    </testcase>
+    <testcase classname="Users (ADMIN uniquement) valide le corps de la requête (400)" name="Users (ADMIN uniquement) valide le corps de la requête (400)" time="0.017">
+    </testcase>
+    <testcase classname="Users (ADMIN uniquement) lit, met à jour puis supprime un utilisateur" name="Users (ADMIN uniquement) lit, met à jour puis supprime un utilisateur" time="0.037">
+    </testcase>
+    <testcase classname="Users (ADMIN uniquement) retourne 404 pour un identifiant inconnu (PUT, DELETE)" name="Users (ADMIN uniquement) retourne 404 pour un identifiant inconnu (PUT, DELETE)" time="0.018">
+    </testcase>
+    <testcase classname="Users (ADMIN uniquement) retourne 500 générique sur conflit d&apos;unicité non géré (PUT email déjà pris)" name="Users (ADMIN uniquement) retourne 500 générique sur conflit d&apos;unicité non géré (PUT email déjà pris)" time="0.078">
+    </testcase>
+  </testsuite>
+  <testsuite name="config/env : valeurs par défaut et surcharge" errors="0" failures="0" skipped="0" timestamp="2026-11-09T10:23:55" time="0.134" tests="5">
+    <testcase classname="config/env : valeurs par défaut et surcharge utilise les valeurs par défaut quand rien n&apos;est défini" name="config/env : valeurs par défaut et surcharge utilise les valeurs par défaut quand rien n&apos;est défini" time="0.003">
+    </testcase>
+    <testcase classname="config/env : valeurs par défaut et surcharge lit les variables d&apos;environnement" name="config/env : valeurs par défaut et surcharge lit les variables d&apos;environnement" time="0.001">
+    </testcase>
+    <testcase classname="middleware de log choisit le format &apos;combined&apos; en production" name="middleware de log choisit le format &apos;combined&apos; en production" time="0.004">
+    </testcase>
+    <testcase classname="services : paramètres de pagination par défaut getAll() sans argument" name="services : paramètres de pagination par défaut getAll() sans argument" time="0.057">
+    </testcase>
+    <testcase classname="services : paramètres de pagination par défaut ApplicationService.updateStatus change le statut ou lève 404" name="services : paramètres de pagination par défaut ApplicationService.updateStatus change le statut ou lève 404" time="0.041">
+    </testcase>
+  </testsuite>
+  <testsuite name="Applications" errors="0" failures="0" skipped="0" timestamp="2026-11-09T10:23:55" time="0.564" tests="6">
+    <testcase classname="Applications exige une authentification (401)" name="Applications exige une authentification (401)" time="0.066">
+    </testcase>
+    <testcase classname="Applications crée une candidature avec statut PENDING par défaut (201)" name="Applications crée une candidature avec statut PENDING par défaut (201)" time="0.059">
+    </testcase>
+    <testcase classname="Applications valide le corps (400) et gère une clé étrangère inexistante (500)" name="Applications valide le corps (400) et gère une clé étrangère inexistante (500)" time="0.114">
+    </testcase>
+    <testcase classname="Applications liste, lit et change le statut d&apos;une candidature" name="Applications liste, lit et change le statut d&apos;une candidature" time="0.07">
+    </testcase>
+    <testcase classname="Applications refuse un statut invalide (400) et une candidature inconnue (404)" name="Applications refuse un statut invalide (400) et une candidature inconnue (404)" time="0.043">
+    </testcase>
+    <testcase classname="Applications DELETE réservé à ADMIN" name="Applications DELETE réservé à ADMIN" time="0.048">
+    </testcase>
+  </testsuite>
+  <testsuite name="Candidates" errors="0" failures="0" skipped="0" timestamp="2026-11-09T10:23:56" time="0.378" tests="6">
+    <testcase classname="Candidates exige une authentification (401)" name="Candidates exige une authentification (401)" time="0.054">
+    </testcase>
+    <testcase classname="Candidates crée un candidat avec email normalisé en minuscules (201)" name="Candidates crée un candidat avec email normalisé en minuscules (201)" time="0.022">
+    </testcase>
+    <testcase classname="Candidates refuse un doublon d&apos;email (409) et un corps invalide (400)" name="Candidates refuse un doublon d&apos;email (409) et un corps invalide (400)" time="0.028">
+    </testcase>
+    <testcase classname="Candidates liste, lit et met à jour un candidat" name="Candidates liste, lit et met à jour un candidat" time="0.059">
+    </testcase>
+    <testcase classname="Candidates retourne 404 pour un candidat inconnu" name="Candidates retourne 404 pour un candidat inconnu" time="0.035">
+    </testcase>
+    <testcase classname="Candidates DELETE réservé à ADMIN : RECRUITER 403, ADMIN 200" name="Candidates DELETE réservé à ADMIN : RECRUITER 403, ADMIN 200" time="0.044">
+    </testcase>
+  </testsuite>
+  <testsuite name="Jobs" errors="0" failures="0" skipped="0" timestamp="2026-11-09T10:23:56" time="1.063" tests="5">
+    <testcase classname="Jobs exige une authentification (401)" name="Jobs exige une authentification (401)" time="0.149">
+    </testcase>
+    <testcase classname="Jobs crée une offre (201) et refuse un corps invalide (400)" name="Jobs crée une offre (201) et refuse un corps invalide (400)" time="0.171">
+    </testcase>
+    <testcase classname="Jobs liste, lit et met à jour une offre" name="Jobs liste, lit et met à jour une offre" time="0.244">
+    </testcase>
+    <testcase classname="Jobs retourne 404 pour une offre inconnue" name="Jobs retourne 404 pour une offre inconnue" time="0.156">
+    </testcase>
+    <testcase classname="Jobs DELETE réservé à ADMIN" name="Jobs DELETE réservé à ADMIN" time="0.207">
+    </testcase>
+  </testsuite>
+  <testsuite name="Système : accueil, santé, info, docs, dashboard" errors="0" failures="0" skipped="0" timestamp="2026-11-09T10:23:57" time="0.548" tests="10">
+    <testcase classname="Système : accueil, santé, info, docs, dashboard GET / retourne le message d&apos;accueil" name="Système : accueil, santé, info, docs, dashboard GET / retourne le message d&apos;accueil" time="0.054">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard n&apos;expose pas l&apos;en-tête X-Powered-By" name="Système : accueil, santé, info, docs, dashboard n&apos;expose pas l&apos;en-tête X-Powered-By" time="0.003">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard GET /v1/health retourne UP" name="Système : accueil, santé, info, docs, dashboard GET /v1/health retourne UP" time="0.002">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard GET /v1/ready retourne READY quand la base répond" name="Système : accueil, santé, info, docs, dashboard GET /v1/ready retourne READY quand la base répond" time="0.003">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard GET /v1/ready retourne 503 quand la base est indisponible" name="Système : accueil, santé, info, docs, dashboard GET /v1/ready retourne 503 quand la base est indisponible" time="0.002">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard GET /v1/info retourne les informations de l&apos;API" name="Système : accueil, santé, info, docs, dashboard GET /v1/info retourne les informations de l&apos;API" time="0.002">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard GET /api-docs sert l&apos;interface Swagger" name="Système : accueil, santé, info, docs, dashboard GET /api-docs sert l&apos;interface Swagger" time="0.003">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard route inconnue : 404 JSON" name="Système : accueil, santé, info, docs, dashboard route inconnue : 404 JSON" time="0.002">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard GET /v1/dashboard/stats compte les ressources" name="Système : accueil, santé, info, docs, dashboard GET /v1/dashboard/stats compte les ressources" time="0.167">
+    </testcase>
+    <testcase classname="Système : accueil, santé, info, docs, dashboard GET /v1/dashboard/stats exige un token" name="Système : accueil, santé, info, docs, dashboard GET /v1/dashboard/stats exige un token" time="0.169">
+    </testcase>
+  </testsuite>
+  <testsuite name="Auth" errors="0" failures="0" skipped="0" timestamp="2026-11-09T10:23:58" time="0.434" tests="8">
+    <testcase classname="Auth POST /v1/auth/login retourne un token et masque le mot de passe" name="Auth POST /v1/auth/login retourne un token et masque le mot de passe" time="0.051">
+    </testcase>
+    <testcase classname="Auth refuse un mot de passe incorrect (401)" name="Auth refuse un mot de passe incorrect (401)" time="0.043">
+    </testcase>
+    <testcase classname="Auth refuse un email inconnu (401)" name="Auth refuse un email inconnu (401)" time="0.026">
+    </testcase>
+    <testcase classname="Auth GET /v1/auth/me retourne le profil sans mot de passe" name="Auth GET /v1/auth/me retourne le profil sans mot de passe" time="0.033">
+    </testcase>
+    <testcase classname="Auth GET /v1/auth/me sans token (401)" name="Auth GET /v1/auth/me sans token (401)" time="0.028">
+    </testcase>
+    <testcase classname="Auth GET /v1/auth/me avec un schéma d&apos;autorisation invalide (401)" name="Auth GET /v1/auth/me avec un schéma d&apos;autorisation invalide (401)" time="0.007">
+    </testcase>
+    <testcase classname="Auth GET /v1/auth/me avec un token falsifié (401)" name="Auth GET /v1/auth/me avec un token falsifié (401)" time="0.005">
+    </testcase>
+    <testcase classname="Auth GET /v1/auth/me pour un utilisateur supprimé (404)" name="Auth GET /v1/auth/me pour un utilisateur supprimé (404)" time="0.118">
+    </testcase>
+  </testsuite>
+  <testsuite name="pagination" errors="0" failures="0" skipped="0" timestamp="2026-11-09T10:23:58" time="0.022" tests="8">
+    <testcase classname="pagination applique les valeurs par défaut" name="pagination applique les valeurs par défaut" time="0.001">
+    </testcase>
+    <testcase classname="pagination borne page &gt;= 1 et limit entre 1 et 100" name="pagination borne page &gt;= 1 et limit entre 1 et 100" time="0">
+    </testcase>
+    <testcase classname="pagination construit les métadonnées" name="pagination construit les métadonnées" time="0">
+    </testcase>
+    <testcase classname="AppError porte statusCode et isOperational" name="AppError porte statusCode et isOperational" time="0.001">
+    </testcase>
+    <testcase classname="authorize 401 sans utilisateur, 403 si rôle absent, next() sinon" name="authorize 401 sans utilisateur, 403 si rôle absent, next() sinon" time="0">
+    </testcase>
+    <testcase classname="errorMiddleware formate une AppError" name="errorMiddleware formate une AppError" time="0">
+    </testcase>
+    <testcase classname="errorMiddleware masque les erreurs inattendues en 500" name="errorMiddleware masque les erreurs inattendues en 500" time="0">
+    </testcase>
+    <testcase classname="InfoService retourne la version de Node" name="InfoService retourne la version de Node" time="0">
+    </testcase>
+  </testsuite>
+</testsuites>
