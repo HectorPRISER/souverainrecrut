@@ -1,0 +1,124 @@
+# Déploiement du backend SouverainRecrut : PostgreSQL + migrations Prisma + API.
+# L'image backend est tirée de Docker Hub (jamais reconstruite ici).
+#
+#   cp .env.example .env     # renseigner les valeurs
+#   docker compose pull
+#   docker compose up -d
+#   docker compose ps
+#
+# Plusieurs environnements sur la même machine : COMPOSE_PROJECT_NAME + API_PORT différents
+# (volumes, réseaux et conteneurs sont préfixés par le nom du projet).
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:?défini dans .env}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?défini dans .env}
+      POSTGRES_DB: ${POSTGRES_DB:?défini dans .env}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [backend]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 12
+      start_period: 5s
+
+  # --- Migrations Prisma ------------------------------------------------------------
+  # L'image backend n'embarque pas la CLI Prisma. On copie d'abord le schéma et les
+  # migrations DEPUIS l'image déployée (donc forcément alignés sur la version du code),
+  # puis une image Node épinglée exécute "prisma migrate deploy".
+  schema-sync:
+    image: ${BACKEND_IMAGE:?défini dans .env}
+    user: root
+    command: ["sh", "-c", "cp -r /app/prisma/. /prisma/"]
+    volumes:
+      - prisma_schema:/prisma
+    restart: "no"
+
+  migrate:
+    image: node:22.16.0-alpine3.22
+    working_dir: /prisma
+    # "migrate deploy" applique uniquement les migrations existantes (jamais de reset ni de perte de données)
+    command:
+      - sh
+      - -c
+      - apk add --no-cache openssl >/dev/null && npx --yes prisma@${PRISMA_VERSION:-6.19.3} migrate deploy --schema /prisma/schema.prisma
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+    volumes:
+      - prisma_schema:/prisma
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      schema-sync:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # --- Admin initial (idempotent, aucun seed destructif) ----------------------------
+  init-admin:
+    image: ${BACKEND_IMAGE}
+    command:
+      - node
+      - -e
+      - |
+        const { PrismaClient } = require('@prisma/client');
+        const bcrypt = require('bcrypt');
+        (async () => {
+          const { ADMIN_EMAIL, ADMIN_PASSWORD } = process.env;
+          if (!ADMIN_EMAIL || !ADMIN_PASSWORD) { console.log('ADMIN_EMAIL/ADMIN_PASSWORD absents : étape ignorée'); return; }
+          const prisma = new PrismaClient();
+          const user = await prisma.user.upsert({
+            where: { email: ADMIN_EMAIL },
+            update: {},
+            create: { firstName: 'Admin', lastName: 'Initial', email: ADMIN_EMAIL, role: 'ADMIN', password: await bcrypt.hash(ADMIN_PASSWORD, 10) },
+          });
+          console.log('Admin présent :', user.email);
+          await prisma.$$disconnect();
+        })().catch((e) => { console.error(e); process.exit(1); });
+    environment:
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-}
+    networks: [backend]
+    depends_on:
+      migrate:
+        condition: service_completed_successfully
+    restart: "no"
+
+  # --- API ----------------------------------------------------------------------------
+  api:
+    image: ${BACKEND_IMAGE}
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: "4000"
+      API_VERSION: v1
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?schema=public
+      JWT_SECRET: ${JWT_SECRET:?défini dans .env}
+      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:5173}
+    ports:
+      - "${API_PORT:-4000}:4000"
+    networks: [backend]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4000/v1/ready').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+networks:
+  backend:
+
+volumes:
+  pgdata:
+  prisma_schema:
