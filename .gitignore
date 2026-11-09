@@ -51,3 +51,7 @@ prisma/dev.db
 backend/coverage/
 backend/reports/
 integration-continue/jenkins/.env
+
+deploiement/deployment/.env
+deploiement/**/*.tfstate*
+deploiement/terraform/.terraform/
