@@ -1,0 +1,190 @@
+// Pipeline CI du backend SouverainRecrut (Pipeline as Code, versionné avec le code).
+// Chaîne : checkout Dev > deps > Prisma > tests+couverture > SonarQube/Quality Gate
+//          > build image > Trivy > push Docker Hub (conditionné à la réussite de tout le reste).
+
+pipeline {
+  agent any
+
+  options {
+    timestamps()
+    timeout(time: 30, unit: 'MINUTES')
+    disableConcurrentBuilds()
+    buildDiscarder(logRotator(numToKeepStr: '15'))
+  }
+
+  // Jenkins interroge GitHub toutes les ~5 min (pas de webhook : Jenkins local non joignable depuis Internet)
+  triggers { pollSCM('H/5 * * * *') }
+
+  parameters {
+    string(name: 'DOCKERHUB_NAMESPACE', defaultValue: 'hectorpriser', description: 'Compte/organisation Docker Hub')
+    booleanParam(name: 'PUSH_IMAGE', defaultValue: true, description: 'Publier l\'image sur Docker Hub si tous les contrôles passent')
+  }
+
+  environment {
+    IMAGE_NAME   = "${params.DOCKERHUB_NAMESPACE}/souverainrecrut-backend"
+    TEST_DB_NAME = "sr-pg-test-${env.BUILD_NUMBER}"
+    TEST_DB_URL  = "postgresql://test:test@sr-pg-test-${env.BUILD_NUMBER}:5432/souverainrecrut_test"
+    CI           = 'true'
+    // Les credentials ne sont jamais écrits ici : voir withCredentials / withSonarQubeEnv
+  }
+
+  stages {
+
+    stage('Checkout') {
+      steps {
+        checkout scm
+        script {
+          env.GIT_SHA   = sh(script: 'git rev-parse --short=7 HEAD', returnStdout: true).trim()
+          env.APP_VERSION = sh(script: "node -p \"require('./backend/package.json').version\"", returnStdout: true).trim()
+          env.TAG_IMMUTABLE = "${env.APP_VERSION}-sha-${env.GIT_SHA}"
+          env.TAG_VERSION   = env.APP_VERSION
+          echo "Image : ${env.IMAGE_NAME}:${env.TAG_IMMUTABLE} (+ :${env.TAG_VERSION})"
+        }
+      }
+    }
+
+    stage('Install') {
+      steps {
+        dir('backend') {
+          sh 'node --version && npm --version'
+          sh 'npm ci'
+        }
+      }
+    }
+
+    stage('Prisma generate') {
+      steps {
+        dir('backend') { sh 'npx prisma generate' }
+      }
+    }
+
+    stage('Build TypeScript') {
+      steps {
+        dir('backend') { sh 'npm run build' }
+      }
+    }
+
+    stage('Tests + couverture') {
+      steps {
+        // PostgreSQL éphémère, rattaché au réseau ci-net partagé avec Jenkins
+        sh '''
+          docker run -d --name "$TEST_DB_NAME" --network ci-net \
+            -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test -e POSTGRES_DB=souverainrecrut_test \
+            postgres:16-alpine
+          for i in $(seq 1 30); do
+            pg_isready -h "$TEST_DB_NAME" -U test -d souverainrecrut_test && break
+            sleep 2
+          done
+          pg_isready -h "$TEST_DB_NAME" -U test -d souverainrecrut_test
+        '''
+        dir('backend') {
+          withEnv(["DATABASE_URL=${env.TEST_DB_URL}", "JWT_SECRET=ci-test-secret"]) {
+            sh 'npm run test:ci'
+          }
+        }
+      }
+      post {
+        always {
+          junit allowEmptyResults: true, testResults: 'backend/reports/junit.xml'
+          archiveArtifacts artifacts: 'backend/coverage/**,backend/reports/**', allowEmptyArchive: true
+        }
+      }
+    }
+
+    stage('Audit dépendances') {
+      steps {
+        dir('backend') {
+          // Échoue uniquement sur CRITICAL ; le détail HIGH/MODERATE est archivé
+          sh 'npm audit --omit=dev --audit-level=critical'
+          sh 'mkdir -p reports && npm audit --omit=dev --json > reports/npm-audit.json || true'
+        }
+      }
+    }
+
+    stage('SonarQube + Quality Gate') {
+      steps {
+        // sonar.qualitygate.wait=true : le scanner attend le verdict et sort en erreur si le gate est KO
+        withSonarQubeEnv('sonar') {
+          sh '''
+            sonar-scanner \
+              -Dproject.settings=integration-continue/sonar/sonar-project.properties \
+              -Dsonar.projectVersion="$APP_VERSION" \
+              -Dsonar.qualitygate.wait=true \
+              -Dsonar.qualitygate.timeout=300
+          '''
+        }
+      }
+    }
+
+    stage('Build image Docker') {
+      steps {
+        sh '''
+          docker build \
+            -f integration-continue/Dockerfile \
+            --label org.opencontainers.image.revision="$GIT_SHA" \
+            --label org.opencontainers.image.version="$APP_VERSION" \
+            --label org.opencontainers.image.source="$GIT_URL" \
+            -t "$IMAGE_NAME:$TAG_IMMUTABLE" \
+            -t "$IMAGE_NAME:$TAG_VERSION" \
+            backend
+          docker image ls "$IMAGE_NAME"
+        '''
+      }
+    }
+
+    stage('Scan Trivy') {
+      steps {
+        sh '''
+          mkdir -p backend/reports
+          # 1) Rapport complet HIGH + CRITICAL (non bloquant, archivé)
+          trivy image --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL \
+            --format table --exit-code 0 \
+            --output backend/reports/trivy-report.txt "$IMAGE_NAME:$TAG_IMMUTABLE"
+          trivy image --scanners vuln --ignore-unfixed --severity HIGH,CRITICAL \
+            --format json --exit-code 0 \
+            --output backend/reports/trivy-report.json "$IMAGE_NAME:$TAG_IMMUTABLE"
+          # 2) Seuil bloquant : toute vulnérabilité CRITICAL corrigeable fait échouer le build
+          trivy image --scanners vuln --ignore-unfixed --severity CRITICAL \
+            --exit-code 1 "$IMAGE_NAME:$TAG_IMMUTABLE"
+        '''
+      }
+      post {
+        always { archiveArtifacts artifacts: 'backend/reports/trivy-report.*', allowEmptyArchive: true }
+      }
+    }
+
+    stage('Push Docker Hub') {
+      when {
+        allOf {
+          expression { return params.PUSH_IMAGE }
+          // Seulement depuis la branche de travail Dev
+          expression { return (env.GIT_BRANCH ?: '').endsWith('Dev') }
+        }
+      }
+      steps {
+        withCredentials([usernamePassword(credentialsId: 'dockerhub',
+                                          usernameVariable: 'DH_USER',
+                                          passwordVariable: 'DH_TOKEN')]) {
+          sh '''
+            echo "$DH_TOKEN" | docker login -u "$DH_USER" --password-stdin
+            docker push "$IMAGE_NAME:$TAG_IMMUTABLE"
+            docker push "$IMAGE_NAME:$TAG_VERSION"
+          '''
+        }
+        echo "Image publiée : ${env.IMAGE_NAME}:${env.TAG_IMMUTABLE}"
+      }
+    }
+  }
+
+  post {
+    always {
+      sh '''
+        docker rm -f "$TEST_DB_NAME" >/dev/null 2>&1 || true
+        docker logout >/dev/null 2>&1 || true
+        docker image rm "$IMAGE_NAME:$TAG_IMMUTABLE" "$IMAGE_NAME:$TAG_VERSION" >/dev/null 2>&1 || true
+      '''
+    }
+    success { echo "Pipeline OK : ${env.IMAGE_NAME}:${env.TAG_IMMUTABLE}" }
+    failure { echo 'Pipeline en échec : consulter les logs du stage en rouge (voir documentation/runbook).' }
+  }
+}
