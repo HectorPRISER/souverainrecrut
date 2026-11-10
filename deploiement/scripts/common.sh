@@ -14,6 +14,10 @@ require_vars() {
   done
   if [ -n "$missing" ]; then
     echo "ERREUR : variables CI/CD manquantes :$missing" >&2
+    echo "  Diagnostic (valeurs non secrètes fournies par GitLab) :" >&2
+    echo "    environnement du job : ${CI_ENVIRONMENT_NAME:-aucun}   (la portée de la variable doit être EXACTEMENT ce nom, ou 'All')" >&2
+    echo "    branche : ${CI_COMMIT_REF_NAME:-?}   protégée : ${CI_COMMIT_REF_PROTECTED:-?}   (une variable 'Protected' n'est transmise que si true)" >&2
+    echo "  À vérifier : Settings > CI/CD > Variables : clé exacte, portée (Environments), 'Protect variable' décoché." >&2
     exit 1
   fi
 }
