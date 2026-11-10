@@ -24,7 +24,18 @@ setup_ssh() {
 
   mkdir -p "$HOME/.ssh"
   chmod 700 "$HOME/.ssh"
-  chmod 600 "$SSH_PRIVATE_KEY"
+  # La variable File de GitLab perd souvent le retour à la ligne final, ou contient des \r : on normalise
+  # dans une copie privée (sinon ssh répond "error in libcrypto").
+  KEY_FILE="$HOME/.ssh/id_deploy"
+  # shellcheck disable=SC1003
+  tr -d '\r' < "$SSH_PRIVATE_KEY" | sed -e '$a\' > "$KEY_FILE"
+  chmod 600 "$KEY_FILE"
+  if ! ssh-keygen -y -f "$KEY_FILE" >/dev/null 2>&1; then
+    echo "ERREUR : SSH_PRIVATE_KEY n'est pas une clé privée valide (copie tronquée ou incomplète ?)." >&2
+    echo "         Recoller TOUT le contenu de la clé, de BEGIN à END compris, avec un retour à la ligne final." >&2
+    exit 1
+  fi
+  SSH_PRIVATE_KEY="$KEY_FILE"
 
   if [ -n "${SSH_KNOWN_HOSTS:-}" ]; then
     # Empreinte du serveur fournie : vérification stricte
