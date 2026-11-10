@@ -14,8 +14,8 @@ VM Ubuntu (QEMU/KVM) → Terraform → Ansible → GitLab CI/CD → pull image D
 | 2 | Terraform (`terraform/`) | Fait et testé (via Docker) |
 | 3 | Ansible (`ansible/`) | Fait et testé sur la cible simulée ET sur la vraie VM (voir ci-dessous) |
 | 4 | Pipeline GitLab (`.gitlab-ci.yml`), staging auto + production manuelle | Fait et testé : pipeline GitLab exécuté de bout en bout (staging automatique, production après approbation) |
-| 5 | Rollback et vérifications | À faire |
-| 6 | Documentation finale (`../documentation/`) | À faire |
+| 5 | Rollback et vérifications | Fait et testé (persistance + rollback en staging, VM réelle) |
+| 6 | Documentation finale (`../documentation/`) | Fait : architecture, procédures de déploiement et de rollback, rapport final |
 
 ---
 
@@ -455,3 +455,20 @@ npm run build && node -e "console.log(require('./dist/config/version').appVersio
 ```
 
 Autre correction faite au passage : le namespace Docker Hub par défaut du `Jenkinsfile` et de `.env.example` est `hector29600` (il valait `hectorpriser`, ce qui faisait échouer le push).
+
+### 5b à 5e — Résultats
+
+- **5b** : Jenkins a publié `hector29600/souverainrecrut-backend:1.0.1-sha-5fde279` (build vert). Docker Hub contient désormais `1.0.0-sha-aab7d05` et `1.0.1-sha-5fde279`.
+  (Un premier build a échoué sur SonarQube : le disque dépassait 95 % et Elasticsearch bloquait ses index en lecture seule ; après libération d'espace et déblocage, le build est passé.)
+- **5c, persistance** : candidat « Test Rollback » créé en `1.0.0` ; après déploiement de la `1.0.1` par le pipeline GitLab, `/v1/info` annonce `1.0.1` et le candidat est toujours présent.
+- **5d, rollback** : pipeline GitLab relancé avec `IMAGE_TAG=1.0.0-sha-aab7d05` ; le staging repasse en `1.0.0`, `READY` / `CONNECTED`, le candidat est toujours présent,
+  `.env.previous` conserve la configuration de la version précédente de chaque environnement.
+- **5e** : procédure écrite dans `../documentation/procedure-rollback.md` (procédure GitLab, procédure de secours manuelle, limite des migrations Prisma et règles de conception).
+
+Vérifier soi-même l'état d'un environnement :
+
+```bash
+curl http://192.168.122.50:4001/v1/info          # staging    : version exposée (1.0.0 ou 1.0.1)
+curl http://192.168.122.50:4000/v1/info          # production
+ssh -i ~/.ssh/sr_deploy deploy@192.168.122.50 'docker ps --format "{{.Names}} {{.Image}}" | grep api'
+```
