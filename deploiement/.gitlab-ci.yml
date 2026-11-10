@@ -39,7 +39,7 @@ default:
 validate-image-tag:
   stage: validate
   script:
-    - test -n "$IMAGE_TAG" || { echo "IMAGE_TAG est vide : renseignez-le au lancement du pipeline."; exit 1; }
+    - test -n "$IMAGE_TAG" || { echo "IMAGE_TAG est vide, renseignez-le au lancement du pipeline."; exit 1; }
     - test "$IMAGE_TAG" != "latest" || { echo "'latest' est interdit (déploiement non traçable)."; exit 1; }
     - echo "$IMAGE_TAG" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+-sha-[0-9a-f]{7}$' || { echo "Format attendu X.Y.Z-sha-xxxxxxx, reçu '$IMAGE_TAG'."; exit 1; }
     - test -n "$DOCKERHUB_NAMESPACE" || { echo "Variable DOCKERHUB_NAMESPACE manquante."; exit 1; }
