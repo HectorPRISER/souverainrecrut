@@ -1,4 +1,5 @@
 import { env } from "../config/env";
+import { appVersion } from "../config/version";
 
 export class InfoService {
   /**
@@ -7,7 +8,7 @@ export class InfoService {
   getInfo() {
     return {
       name: "SouverainRecrut API",
-      version: "1.0.0",
+      version: appVersion,
       environment: env.nodeEnv,
       apiVersion: env.apiVersion,
       documentation: "/api-docs",

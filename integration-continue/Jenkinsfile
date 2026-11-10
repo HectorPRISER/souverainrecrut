@@ -16,7 +16,7 @@ pipeline {
   triggers { pollSCM('H/5 * * * *') }
 
   parameters {
-    string(name: 'DOCKERHUB_NAMESPACE', defaultValue: 'hectorpriser', description: 'Compte/organisation Docker Hub')
+    string(name: 'DOCKERHUB_NAMESPACE', defaultValue: 'hector29600', description: 'Compte/organisation Docker Hub')
     booleanParam(name: 'PUSH_IMAGE', defaultValue: true, description: 'Publier l\'image sur Docker Hub si tous les contrôles passent')
   }
 

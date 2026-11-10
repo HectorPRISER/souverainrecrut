@@ -19,6 +19,7 @@ describe("Système : accueil, santé, info, docs, dashboard", () => {
   it("GET / retourne le message d'accueil", async () => {
     const res = await request(app).get("/");
     expect(res.status).toBe(200);
+    expect(res.body.version).toBe(require("../../package.json").version);
     expect(res.body.documentation).toBe("/api-docs");
   });
 
@@ -52,6 +53,8 @@ describe("Système : accueil, santé, info, docs, dashboard", () => {
     const res = await request(app).get("/v1/info");
     expect(res.status).toBe(200);
     expect(res.body.data.name).toBe("SouverainRecrut API");
+    // la version exposée est celle de package.json (celle qui sert aussi de tag d'image)
+    expect(res.body.data.version).toBe(require("../../package.json").version);
   });
 
   it("GET /api-docs sert l'interface Swagger", async () => {

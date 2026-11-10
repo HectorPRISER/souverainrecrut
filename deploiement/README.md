@@ -13,7 +13,7 @@ VM Ubuntu (QEMU/KVM) → Terraform → Ansible → GitLab CI/CD → pull image D
 | 1 | Docker Compose + migrations Prisma (`deployment/`) | Fait et testé en local |
 | 2 | Terraform (`terraform/`) | Fait et testé (via Docker) |
 | 3 | Ansible (`ansible/`) | Fait et testé sur la cible simulée ET sur la vraie VM (voir ci-dessous) |
-| 4 | Pipeline GitLab (`.gitlab-ci.yml`), staging auto + production manuelle | Scripts testés sur la vraie VM (staging) ; pipeline GitLab à exécuter une fois les variables et le runner en place |
+| 4 | Pipeline GitLab (`.gitlab-ci.yml`), staging auto + production manuelle | Fait et testé : pipeline GitLab exécuté de bout en bout (staging automatique, production après approbation) |
 | 5 | Rollback et vérifications | À faire |
 | 6 | Documentation finale (`../documentation/`) | À faire |
 
@@ -400,3 +400,58 @@ Création de la VM : virt-manager, ISO Ubuntu 22.04.5 Desktop, 2 vCPU, 4 Go, 30 
   `/opt/souverainrecrut/{production,staging}` à `deploy:deploy`, UFW actif (22, 4000, 4001 en IPv4 et IPv6).
 - **Défaut trouvé grâce à ce test** : la vérification du pare-feu cherchait `Status: active`, or la VM est en français (`État : actif`). Corrigé avec `LC_ALL=C`.
 - Un redémarrage est requis après la mise à jour du noyau (`/var/run/reboot-required`) : `sudo reboot` sur la VM, sans conséquence pour la suite.
+
+---
+
+## Résultat du pipeline GitLab (exécution réelle)
+
+Pipeline lancé à la demande (*Run pipeline*, branche `Dev`, `IMAGE_TAG` = `1.0.0-sha-aab7d05`) sur le runner local `sr-local-runner` :
+
+1. `validate-image-tag` et `validate-compose` : verts.
+2. `deploy-staging` puis `verify-staging` : verts (port 4001).
+3. `deploy-production` : mis en attente (approbation manuelle), lancé après validation, puis `verify-production` vert (port 4000).
+
+Contrôle depuis la machine hôte : `curl http://192.168.122.50:4001/v1/ready` et `curl http://192.168.122.50:4000/v1/ready` renvoient
+`"status":"READY","database":"CONNECTED"` ; `/v1/health` renvoie `UP`. Sur la VM : quatre conteneurs `healthy`
+(`souverainrecrut-{staging,production}-{api,postgres}-1`), image `hector29600/souverainrecrut-backend:1.0.0-sha-aab7d05`.
+
+### Problèmes rencontrés et corrigés pendant la mise en place (utile pour le rapport)
+
+| Problème | Cause | Correction |
+|----------|-------|-----------|
+| `script config should be a string or a nested array of strings` | Une ligne de `script` contenait `: ` et YAML la lisait comme un dictionnaire | Ligne reformulée ; contrôle qui vérifie que chaque ligne est une chaîne |
+| `Variable DOCKERHUB_NAMESPACE manquante` | Variables créées « Protected » alors que `Dev` n'est pas une branche protégée | *Protect variable* décoché |
+| `impossible de récupérer l'empreinte SSH` | Le job avait été pris par un runner partagé de gitlab.com, qui ne joint pas une IP privée | Runners d'instance désactivés pour le projet, runner local utilisé |
+| `Load key ... error in libcrypto` | Clé SSH collée avec des retours à la ligne cassés | Variable `SSH_PRIVATE_KEY_B64` (base64 sur une ligne) + normalisation et validation de la clé dans le script |
+| *Retry* sans effet après un correctif | *Retry* rejoue le commit d'origine du pipeline | Nouveau pipeline après chaque push |
+| `variables CI/CD manquantes : POSTGRES_PASSWORD JWT_SECRET` (job production) | Secrets créés seulement pour `staging` | Variables créées avec la portée `production`, diagnostic ajouté au script |
+
+---
+
+## Étape 5 — Vérifications, persistance et rollback
+
+Plan : (5a) fabriquer une 2e version de l'image, (5b) la publier avec Jenkins, (5c) tester la persistance des données et déployer la 1.0.1 en staging,
+(5d) revenir à la 1.0.0 par le pipeline GitLab, (5e) documenter la procédure (`documentation/procedure-rollback.md`).
+
+### 5a — Une 2e version identifiable du backend
+
+Pour qu'un rollback ait un sens, il faut deux versions réellement différentes. Changement volontairement minimal et inoffensif :
+
+- `backend/package.json` passe de `1.0.0` à **`1.0.1`** (c'est aussi ce numéro que Jenkins utilise pour le tag de l'image : `1.0.1-sha-xxxxxxx`) ;
+- nouveau `src/config/version.ts` : la version est lue dans `package.json` (source unique) au lieu d'être écrite en dur ;
+- `GET /` et `GET /v1/info` exposent désormais cette version : on peut voir **quelle version tourne** sur chaque environnement.
+
+Tests ajoutés (version exposée = version de `package.json`, et valeur de repli `unknown` si le fichier est illisible ou sans champ `version`) :
+**59 tests, couverture 100 %** (statements, branches, functions, lines), le build TypeScript passe, et `dist/config/version` renvoie `1.0.1`.
+
+Tester en local :
+
+```bash
+cd backend && source ~/.nvm/nvm.sh && nvm use 22
+docker start sr-pg-test || docker run -d --name sr-pg-test -e POSTGRES_USER=test -e POSTGRES_PASSWORD=test \
+  -e POSTGRES_DB=souverainrecrut_test -p 5433:5432 postgres:16-alpine
+npm run test:coverage          # attendu : 59 tests, 100 % partout
+npm run build && node -e "console.log(require('./dist/config/version').appVersion)"   # attendu : 1.0.1
+```
+
+Autre correction faite au passage : le namespace Docker Hub par défaut du `Jenkinsfile` et de `.env.example` est `hector29600` (il valait `hectorpriser`, ce qui faisait échouer le push).

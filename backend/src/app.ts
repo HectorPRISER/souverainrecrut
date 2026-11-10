@@ -2,6 +2,7 @@ import express from "express";
 import swaggerUi from "swagger-ui-express";
 
 import { env } from "./config/env";
+import { appVersion } from "./config/version";
 
 import routes from "./routes";
 
@@ -37,7 +38,7 @@ app.get("/", (req, res) => {
   res.status(200).json({
     success: true,
     message: "Bienvenue sur l'API SouverainRecrut 🚀",
-    version: "1.0.0",
+    version: appVersion,
     api: `/${env.apiVersion}`,
     documentation: "/api-docs",
   });
