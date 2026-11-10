@@ -1,0 +1,23 @@
+# Runner GitLab local (executor docker) : exécute les jobs du pipeline de déploiement sur ta machine,
+# qui peut ainsi joindre la VM par SSH (réseau libvirt 192.168.122.x).
+#
+#   docker compose up -d
+#   docker compose exec runner gitlab-runner register --non-interactive \
+#     --url https://gitlab.com --token <glrt-...> --executor docker \
+#     --docker-image alpine:3.21 --docker-network-mode host --description sr-local-runner
+#
+# Le token glrt-... est créé dans GitLab : Settings > CI/CD > Runners > New project runner.
+# Il ne doit jamais être commité. Suppression : docker compose down -v (+ supprimer le runner dans GitLab).
+name: gitlab-runner
+
+services:
+  runner:
+    image: gitlab/gitlab-runner:v17.7.1
+    container_name: gitlab-runner
+    restart: unless-stopped
+    volumes:
+      - runner_config:/etc/gitlab-runner
+      - /var/run/docker.sock:/var/run/docker.sock
+
+volumes:
+  runner_config:

@@ -1,0 +1,125 @@
+# Pipeline de DÉPLOIEMENT SouverainRecrut (backend) : tire l'image publiée par Jenkins sur Docker Hub
+# et la déploie par SSH + Docker Compose. Il ne reconstruit JAMAIS l'image depuis le code source.
+#
+# Lancement : CI/CD > Pipelines > Run pipeline, en renseignant IMAGE_TAG (ex. 1.0.0-sha-aab7d05).
+# Chemin du fichier à régler dans le projet : Settings > CI/CD > General pipelines >
+#   "CI/CD configuration file" = deploiement/.gitlab-ci.yml
+#
+# Flux : validate > staging (automatique) > verify-staging > production (APPROBATION MANUELLE) > verify-production
+# Les secrets sont des variables CI/CD GitLab (masquées, limitées par environnement) : voir deploiement/README.md.
+
+workflow:
+  rules:
+    # Déploiement uniquement à la demande (jamais sur un simple push)
+    - if: $CI_PIPELINE_SOURCE == "web"
+    - if: $CI_PIPELINE_SOURCE == "api"
+    - if: $CI_PIPELINE_SOURCE == "trigger"
+    - when: never
+
+variables:
+  IMAGE_TAG:
+    value: ""
+    description: "Tag IMMUABLE de l'image backend à déployer, produit par Jenkins (ex. 1.0.0-sha-aab7d05). 'latest' est refusé."
+  IMAGE_REPO: souverainrecrut-backend
+  DEPLOY_DIR: /opt/souverainrecrut
+
+stages:
+  - validate
+  - staging
+  - verify-staging
+  - production
+  - verify-production
+
+default:
+  image: alpine:3.21
+  before_script:
+    - apk add --no-cache openssh-client curl >/dev/null
+
+# ---------------------------------------------------------------- validate
+validate-image-tag:
+  stage: validate
+  script:
+    - test -n "$IMAGE_TAG" || { echo "IMAGE_TAG est vide : renseignez-le au lancement du pipeline."; exit 1; }
+    - test "$IMAGE_TAG" != "latest" || { echo "'latest' est interdit (déploiement non traçable)."; exit 1; }
+    - echo "$IMAGE_TAG" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+-sha-[0-9a-f]{7}$' || { echo "Format attendu X.Y.Z-sha-xxxxxxx, reçu '$IMAGE_TAG'."; exit 1; }
+    - test -n "$DOCKERHUB_NAMESPACE" || { echo "Variable DOCKERHUB_NAMESPACE manquante."; exit 1; }
+    # Le tag doit exister sur Docker Hub (dépôt public ; pour un dépôt privé, vérifier avec le token)
+    - |
+      code=$(curl -s -o /dev/null -w '%{http_code}' "https://hub.docker.com/v2/repositories/${DOCKERHUB_NAMESPACE}/${IMAGE_REPO}/tags/${IMAGE_TAG}")
+      echo "Docker Hub : ${DOCKERHUB_NAMESPACE}/${IMAGE_REPO}:${IMAGE_TAG} -> HTTP ${code}"
+      test "$code" = "200" || { echo "Tag introuvable sur Docker Hub."; exit 1; }
+
+validate-compose:
+  stage: validate
+  image: docker:27-cli
+  before_script: []
+  script:
+    # Valide docker-compose.yml avec des valeurs factices (aucun secret réel, aucun démon Docker requis)
+    - |
+      cat > /tmp/ci.env <<EOF
+      COMPOSE_PROJECT_NAME=ci
+      BACKEND_IMAGE=${DOCKERHUB_NAMESPACE:-ns}/${IMAGE_REPO}:0.0.0-sha-0000000
+      POSTGRES_USER=u
+      POSTGRES_PASSWORD=p
+      POSTGRES_DB=d
+      JWT_SECRET=s
+      EOF
+    - docker compose --env-file /tmp/ci.env -f deploiement/deployment/docker-compose.yml config -q
+    - echo "docker-compose.yml valide."
+
+# ---------------------------------------------------------------- modèles
+.deploy:
+  script:
+    - sh deploiement/scripts/deploy.sh
+
+.verify:
+  script:
+    - sh deploiement/scripts/verify.sh
+
+# ---------------------------------------------------------------- staging (automatique)
+deploy-staging:
+  extends: .deploy
+  stage: staging
+  needs: [validate-image-tag, validate-compose]
+  resource_group: staging
+  environment:
+    name: staging
+  variables:
+    ENV_NAME: staging
+    COMPOSE_PROJECT_NAME: souverainrecrut-staging
+    API_PORT: "4001"
+
+verify-staging:
+  extends: .verify
+  stage: verify-staging
+  needs: [deploy-staging]
+  environment:
+    name: staging
+  variables:
+    ENV_NAME: staging
+    API_PORT: "4001"
+
+# ---------------------------------------------------------------- production (approbation manuelle)
+deploy-production:
+  extends: .deploy
+  stage: production
+  needs: [verify-staging]
+  when: manual            # le pipeline s'arrête ici jusqu'à validation humaine
+  allow_failure: false    # tant que non approuvé, le pipeline reste "bloqué" (et non "réussi")
+  resource_group: production
+  environment:
+    name: production
+  variables:
+    ENV_NAME: production
+    COMPOSE_PROJECT_NAME: souverainrecrut-production
+    API_PORT: "4000"
+
+verify-production:
+  extends: .verify
+  stage: verify-production
+  needs: [deploy-production]
+  environment:
+    name: production
+  variables:
+    ENV_NAME: production
+    API_PORT: "4000"

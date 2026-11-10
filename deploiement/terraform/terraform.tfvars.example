@@ -1,0 +1,6 @@
+# Copier en terraform.tfvars (ignoré par git) pour surcharger les valeurs par défaut.
+vm_name              = "sr-deploy"
+vm_ip                = "192.168.122.50"
+ssh_user             = "deploy"
+ssh_private_key_path = "~/.ssh/sr_deploy"
+deploy_dir           = "/opt/souverainrecrut"

@@ -1,0 +1,45 @@
+# VARIANTE vSphere : création réelle de la VM sur un ESXi géré par vCenter.
+# NON UTILISÉE dans ce TP : elle exige ESXi + vCenter, absents de l'environnement (poste Linux, QEMU/KVM).
+# Fichier en .example : Terraform l'ignore. Pour l'activer : le renommer en vsphere.tf,
+# décommenter le provider "vsphere" dans providers.tf, renseigner les variables ci-dessous.
+#
+# Rappel du cahier : VMware Workstation seul ne permet pas de créer une VM avec ce provider.
+
+# variable "vsphere_user"     { type = string }
+# variable "vsphere_password" { type = string, sensitive = true }  # via TF_VAR_vsphere_password, jamais en clair
+# variable "vsphere_server"   { type = string }
+# variable "datacenter"       { type = string }
+# variable "datastore"        { type = string }
+# variable "cluster"          { type = string }
+# variable "network"          { type = string }
+# variable "template_name"    { type = string }  # modèle Ubuntu préparé (cloud-init / open-vm-tools)
+#
+# provider "vsphere" {
+#   user                 = var.vsphere_user
+#   password             = var.vsphere_password
+#   vsphere_server       = var.vsphere_server
+#   allow_unverified_ssl = true
+# }
+#
+# data "vsphere_datacenter" "dc"         { name = var.datacenter }
+# data "vsphere_datastore" "ds"          { name = var.datastore, datacenter_id = data.vsphere_datacenter.dc.id }
+# data "vsphere_compute_cluster" "cl"    { name = var.cluster,   datacenter_id = data.vsphere_datacenter.dc.id }
+# data "vsphere_network" "net"           { name = var.network,   datacenter_id = data.vsphere_datacenter.dc.id }
+# data "vsphere_virtual_machine" "tpl"   { name = var.template_name, datacenter_id = data.vsphere_datacenter.dc.id }
+#
+# resource "vsphere_virtual_machine" "deploy" {
+#   name             = var.vm_name
+#   resource_pool_id = data.vsphere_compute_cluster.cl.resource_pool_id
+#   datastore_id     = data.vsphere_datastore.ds.id
+#   num_cpus         = 2
+#   memory           = 4096
+#   guest_id         = data.vsphere_virtual_machine.tpl.guest_id
+#   network_interface { network_id = data.vsphere_network.net.id }
+#   disk {
+#     label = "disk0"
+#     size  = 30
+#   }
+#   clone { template_uuid = data.vsphere_virtual_machine.tpl.id }
+# }
+#
+# Dans main.tf, remplacer alors vm_ip par : vsphere_virtual_machine.deploy.default_ip_address
