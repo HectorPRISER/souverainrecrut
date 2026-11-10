@@ -31,10 +31,17 @@ setup_ssh() {
     if [ -f "$SSH_KNOWN_HOSTS" ]; then cp "$SSH_KNOWN_HOSTS" "$HOME/.ssh/known_hosts"; else printf '%s\n' "$SSH_KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"; fi
   else
     echo "AVERTISSEMENT : SSH_KNOWN_HOSTS non défini, empreinte récupérée au premier contact (TOFU)." >&2
-    ssh-keyscan -p "$SSH_PORT" "$SERVER_HOST" > "$HOME/.ssh/known_hosts" 2>/dev/null
+    if ! ssh-keyscan -T 10 -p "$SSH_PORT" "$SERVER_HOST" > "$HOME/.ssh/known_hosts" 2> "$HOME/.ssh/keyscan.err" \
+       || [ ! -s "$HOME/.ssh/known_hosts" ]; then
+      echo "ERREUR : impossible de récupérer l'empreinte SSH de '$SERVER_HOST' (port $SSH_PORT)." >&2
+      echo "         Vérifier SERVER_HOST (pas d'espace ni de http://), que la VM tourne, et que le runner la joint (network_mode host)." >&2
+      cat "$HOME/.ssh/keyscan.err" >&2 || true
+      exit 1
+    fi
   fi
   chmod 644 "$HOME/.ssh/known_hosts"
 
+  echo "Cible SSH : $SSH_USER@$SERVER_HOST:$SSH_PORT (dossier $REMOTE_DIR)"
   SSH_OPTS="-i $SSH_PRIVATE_KEY -p $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15"
   SCP_OPTS="-i $SSH_PRIVATE_KEY -P $SSH_PORT -o BatchMode=yes -o StrictHostKeyChecking=yes -o ConnectTimeout=15"
   export SSH_PORT DEPLOY_DIR REMOTE_DIR SSH_OPTS SCP_OPTS
