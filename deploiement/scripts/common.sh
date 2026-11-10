@@ -1,7 +1,9 @@
 #!/bin/sh
 # Fonctions communes aux scripts de déploiement (POSIX sh : tourne sous busybox/alpine dans le runner).
 # Variables attendues (fournies par GitLab CI/CD, jamais par le dépôt) :
-#   SERVER_HOST, SSH_USER, SSH_PRIVATE_KEY (variable de type File = chemin du fichier)
+#   SERVER_HOST, SSH_USER, et la clé privée sous l'une de ces deux formes :
+#     SSH_PRIVATE_KEY_B64 (RECOMMANDÉ) : clé encodée en base64 sur UNE ligne (base64 -w0), variable masquable
+#     SSH_PRIVATE_KEY                  : variable de type File (chemin du fichier), fragile au copier-coller
 # Optionnelles : SSH_PORT (22), SSH_KNOWN_HOSTS (File ou contenu), DEPLOY_DIR (/opt/souverainrecrut)
 
 require_vars() {
@@ -17,22 +19,31 @@ require_vars() {
 }
 
 setup_ssh() {
-  require_vars SERVER_HOST SSH_USER SSH_PRIVATE_KEY ENV_NAME
+  require_vars SERVER_HOST SSH_USER ENV_NAME
+  if [ -z "${SSH_PRIVATE_KEY_B64:-}" ] && [ -z "${SSH_PRIVATE_KEY:-}" ]; then
+    echo "ERREUR : définir SSH_PRIVATE_KEY_B64 (recommandé) ou SSH_PRIVATE_KEY." >&2
+    exit 1
+  fi
   SSH_PORT="${SSH_PORT:-22}"
   DEPLOY_DIR="${DEPLOY_DIR:-/opt/souverainrecrut}"
   REMOTE_DIR="$DEPLOY_DIR/$ENV_NAME"
 
   mkdir -p "$HOME/.ssh"
   chmod 700 "$HOME/.ssh"
-  # La variable File de GitLab perd souvent le retour à la ligne final, ou contient des \r : on normalise
-  # dans une copie privée (sinon ssh répond "error in libcrypto").
   KEY_FILE="$HOME/.ssh/id_deploy"
-  # shellcheck disable=SC1003
-  tr -d '\r' < "$SSH_PRIVATE_KEY" | sed -e '$a\' > "$KEY_FILE"
+  if [ -n "${SSH_PRIVATE_KEY_B64:-}" ]; then
+    # base64 sur une ligne : insensible aux retours à la ligne perdus ou ajoutés au copier-coller
+    # shellcheck disable=SC1003
+    printf '%s' "$SSH_PRIVATE_KEY_B64" | tr -d ' \r\n' | base64 -d 2>/dev/null | sed -e '$a\' > "$KEY_FILE" || true
+  else
+    # Variable File : on retire les \r et on garantit un retour à la ligne final (sinon "error in libcrypto")
+    # shellcheck disable=SC1003
+    tr -d '\r' < "$SSH_PRIVATE_KEY" | sed -e '$a\' > "$KEY_FILE"
+  fi
   chmod 600 "$KEY_FILE"
   if ! ssh-keygen -y -f "$KEY_FILE" >/dev/null 2>&1; then
-    echo "ERREUR : SSH_PRIVATE_KEY n'est pas une clé privée valide (copie tronquée ou incomplète ?)." >&2
-    echo "         Recoller TOUT le contenu de la clé, de BEGIN à END compris, avec un retour à la ligne final." >&2
+    echo "ERREUR : la clé privée SSH n'est pas valide (copie tronquée, incomplète ou mal encodée ?)." >&2
+    echo "         Recommandé : SSH_PRIVATE_KEY_B64 = sortie de  base64 -w0 ~/.ssh/sr_deploy  (une seule ligne)." >&2
     exit 1
   fi
   SSH_PRIVATE_KEY="$KEY_FILE"

@@ -306,7 +306,8 @@ Les variables masquées exigent 8 caractères minimum, sans espace (évite aussi
 | `DOCKERHUB_NAMESPACE` | Variable | Toutes | `hector29600` |
 | `SERVER_HOST` | Variable | Toutes | IP de la VM (ex. `192.168.122.50`) |
 | `SSH_USER` | Variable | Toutes | `deploy` |
-| `SSH_PRIVATE_KEY` | **File** | Toutes | Contenu de `~/.ssh/sr_deploy` (terminer par un retour à la ligne) |
+| `SSH_PRIVATE_KEY_B64` | **Masquée** (recommandé) | Toutes | Sortie de `base64 -w0 ~/.ssh/sr_deploy` : la clé sur **une seule ligne**, insensible aux retours à la ligne perdus ou ajoutés au copier-coller |
+| `SSH_PRIVATE_KEY` | File (alternative) | Toutes | Contenu de `~/.ssh/sr_deploy` ; fragile au copier-coller (voir dépannage) |
 | `SSH_KNOWN_HOSTS` | File (optionnel) | Toutes | Sortie de `ssh-keyscan <IP>` |
 | `POSTGRES_USER` | Variable | `staging` et `production` | `souverain` |
 | `POSTGRES_DB` | Variable | `staging` et `production` | `souverainrecrut` |
@@ -382,7 +383,11 @@ Résultat réellement obtenu sur `sr-deploy` (staging) : image `hector29600/souv
 | `This job is stuck` | Aucun runner disponible | Enregistrer le runner (section ci-dessus), vérifier qu'il est en ligne |
 | `variables CI/CD manquantes : ...` | Variable non créée ou limitée à un autre environnement | Vérifier le nom et la portée (staging / production) |
 | `Host key verification failed` | `SSH_KNOWN_HOSTS` obsolète (VM réinstallée) | Régénérer avec `ssh-keyscan <IP>` |
-| `Permission denied (publickey)` | `SSH_PRIVATE_KEY` mal collée (pas de retour à la ligne final) ou clé non copiée sur la VM | Recoller la clé complète ; `ssh-copy-id` |
+| `Load key ...: error in libcrypto` / `Permission denied (publickey)` | Clé collée avec des retours à la ligne cassés (copie depuis un terminal étroit) ou sans retour final | Utiliser `SSH_PRIVATE_KEY_B64` (une ligne). Le script normalise aussi la variable File et valide la clé avant de se connecter |
+| `ERREUR : la clé privée SSH n'est pas valide` | Clé tronquée ou mal encodée | `base64 -w0 ~/.ssh/sr_deploy` puis recoller toute la ligne |
+| `ERREUR : impossible de récupérer l'empreinte SSH` | Le job n'atteint pas la VM : souvent un **runner partagé de gitlab.com** a pris le job | *Settings, CI/CD, Runners* : désactiver les « instance runners » du projet, garder `sr-local-runner` (Run untagged jobs coché) |
+| Le correctif poussé n'est pas pris en compte | *Retry* rejoue le job sur le commit d'origine du pipeline | Lancer un **nouveau pipeline** (*Run pipeline*) après chaque push |
+| `[MASKED]` partout dans les logs | Variables non secrètes (`POSTGRES_DB`, `POSTGRES_USER`) marquées *Masked* | Les démasquer ; ne masquer que les secrets |
 | `Tag introuvable sur Docker Hub` | Mauvais `DOCKERHUB_NAMESPACE`, tag erroné, ou dépôt privé | Vérifier le tag publié par Jenkins |
 | Variable masquée refusée à la création | Valeur trop courte ou caractères interdits | Utiliser 8+ caractères alphanumériques (`openssl rand -hex 16`) |
 
